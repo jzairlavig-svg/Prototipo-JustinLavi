@@ -1,184 +1,132 @@
-# streamlit_app.py
-# Streamlit app: Accidentes de tránsito en Perú (usa datasets oficiales SUTRAN / ONSV / INEI)
-# Ejecutar: pip install streamlit pandas altair folium pydeck requests openpyxl
-# Luego: streamlit run streamlit_app.py
-
 import streamlit as st
 import pandas as pd
 import altair as alt
 import requests
-from io import BytesIO
-import pydeck as pdk
+from io import StringIO
 
-st.set_page_config(layout="wide", page_title="Accidentes de Tránsito - Perú", page_icon="🚦")
+# ----------------------------------------
+# CONFIGURACIÓN DE LA PÁGINA
+# ----------------------------------------
+st.set_page_config(
+    page_title="Accidentes de Tránsito en el Perú",
+    page_icon="🚗",
+    layout="wide"
+)
 
-st.title("Accidentes de Tránsito en Perú — visualización (datos abiertos)")
-
+st.title("🚗 Accidentes de Tránsito en el Perú (SUTRAN)")
 st.markdown(
-    """
-    **Fuentes (cargadas automáticamente):**
-    - SUTRAN / Plataforma Nacional de Datos Abiertos (dataset "Accidentes de tránsito en carreteras").  
-    - Observatorio Nacional de Seguridad Vial (ONSV) / INEI (boletines) según corresponda.
-    """
+    "Este dashboard muestra información real sobre los **accidentes de tránsito en el Perú**, "
+    "basado en datos abiertos del [MTC y SUTRAN](https://datosabiertos.mtc.gob.pe)."
 )
 
-# -------- Usuario: URLs de datasets (editar si tienes otra versión) --------
-SUTRAN_CSV_URL = (
-    "https://datosabiertos.gob.pe/sites/default/files/Accidentes%20de%20tr%C3%A1nsito%20en%20carreteras-2020-2021-Sutran.csv"
-)
-# ONSV histórico (si quieres usarlo, la web publica recursos; aquí se deja como referencia)
-ONSV_HIST_URL = "https://www.onsv.gob.pe/datosabiertos"  # página con recursos (xlsx/csv) -> ver explicación
+# ----------------------------------------
+# DESCARGA DE DATOS
+# ----------------------------------------
 
-# -------- Funciones auxiliares --------
-@st.cache_data(ttl=3600)
+@st.cache_data
 def descargar_csv(url):
     try:
         resp = requests.get(url, timeout=20)
         resp.raise_for_status()
-        # intenta inferir si es csv o excel
-        content_type = resp.headers.get("content-type", "")
-        if "text/csv" in content_type or url.lower().endswith(".csv"):
-            df = pd.read_csv(BytesIO(resp.content), encoding="utf-8", low_memory=False)
-        else:
-            # intentar excel
-            df = pd.read_excel(BytesIO(resp.content))
-        return df, None
+        return pd.read_csv(StringIO(resp.text), sep=";"), None
     except Exception as e:
         return None, str(e)
 
-# -------- Descargar dataset SUTRAN --------
-st.sidebar.header("Configuración / Fuentes")
-st.sidebar.write("Dataset por defecto: SUTRAN (Datos Abiertos). Puedes cambiar la URL si tienes otra versión.")
+# Fuente de datos (MTC/SUTRAN)
+SUTRAN_CSV_URL = "https://datosabiertos.mtc.gob.pe/sites/default/files/Accidentes%20de%20Tr%C3%A1nsito%20en%20carreteras%202020-2023%20SUTRAN.csv"
 
-csv_url = st.sidebar.text_input("URL CSV (SUTRAN)", SUTRAN_CSV_URL)
+with st.spinner("Descargando dataset real..."):
+    df, err = descargar_csv(SUTRAN_CSV_URL)
 
-with st.spinner("Descargando dataset..."):
-    df, err = descargar_csv(csv_url)
-
-if err is not None or df is None:
-    st.error("No se pudo descargar o parsear el CSV desde la URL indicada.")
-    st.info("Error técnico: " + (err or "desconocido"))
-    st.warning("Cargando ejemplo sintético a modo demostración (revisa la URL o descarga el csv manualmente).")
-    # Crear pequeño ejemplo de estructura esperada
+if df is None or df.empty:
+    st.error("⚠️ No se pudo cargar el dataset real desde la URL.")
+    st.info(f"Detalle del error: {err}")
+    st.warning("Mostrando dataset de ejemplo para visualización.")
     df = pd.DataFrame({
         "fecha": pd.date_range("2021-01-01", periods=12, freq="M"),
-        "departamento": ["Lima","Junin","Cusco","Lima","Arequipa","Lima","Cusco","Piura","Lima","Loreto","Lima","Ica"],
+        "departamento": ["Lima","Junín","Cusco","Lima","Arequipa","Lima","Cusco","Piura","Lima","Loreto","Lima","Ica"],
         "modalidad": ["Choque","Despiste","Atropello","Choque","Volcadura","Choque","Atropello","Choque","Choque","Despiste","Atropello","Choque"],
         "fallecidos": [1,0,2,0,1,0,0,1,0,0,0,2],
         "heridos": [0,2,1,3,0,1,0,2,1,0,0,1],
-        # si hay lat/lon: 'lat','lon'
     })
+else:
+    st.success("✅ Dataset real cargado correctamente.")
 
-# -------- Preprocesado básico --------
-# normalizar nombres de columnas comunes (intentar detectar)
-df_cols = [c.lower().strip() for c in df.columns]
-col_map = {original: col for original, col in zip(df.columns, df_cols)}
-
-# renombrar para uso interno
-df = df.rename(columns=col_map)
-
-# parsear fecha
+# ----------------------------------------
+# LIMPIEZA DE DATOS
+# ----------------------------------------
 if "fecha" in df.columns:
     try:
         df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-    except:
+    except Exception:
         pass
 
-# columnas útiles por defecto:
-for col in ["departamento", "modalidad", "fallecidos", "heridos", "fecha"]:
-    if col not in df.columns:
-        st.warning(f"El dataset parece no tener columna esperada: '{col}'. Adapta el código según tu CSV.")
+# Filtros dinámicos
+departamentos = sorted(df["departamento"].dropna().unique())
+dep_sel = st.sidebar.multiselect("Selecciona departamentos:", departamentos, default=["Lima"])
+anio_sel = st.sidebar.slider("Selecciona año:", 2020, 2024, (2021, 2023))
 
-# limpiar filas sin fecha
-if "fecha" in df.columns:
-    df = df[~df["fecha"].isna()]
-
-# -------- Sidebar: filtros --------
-st.sidebar.subheader("Filtros")
-anio_min = int(df["fecha"].dt.year.min()) if "fecha" in df.columns else 2020
-anio_max = int(df["fecha"].dt.year.max()) if "fecha" in df.columns else 2025
-selected_years = st.sidebar.slider("Año (rango)", anio_min, anio_max, (anio_min, anio_max))
-selected_dept = st.sidebar.multiselect(
-    "Departamento (filtrar)", sorted(df["departamento"].dropna().unique())[:50], default=None
-)
-modalidades = df["modalidad"].dropna().unique() if "modalidad" in df.columns else []
-selected_modalidad = st.sidebar.multiselect("Modalidad", sorted(modalidades), default=None)
-
-# aplicar filtros
-df_filtered = df.copy()
-if "fecha" in df_filtered.columns:
-    df_filtered = df_filtered[
-        (df_filtered["fecha"].dt.year >= selected_years[0]) &
-        (df_filtered["fecha"].dt.year <= selected_years[1])
+# Filtrado
+df_filtrado = df.copy()
+if "fecha" in df_filtrado.columns:
+    df_filtrado = df_filtrado[
+        (df_filtrado["fecha"].dt.year >= anio_sel[0]) &
+        (df_filtrado["fecha"].dt.year <= anio_sel[1])
     ]
-if selected_dept:
-    df_filtered = df_filtered[df_filtered["departamento"].isin(selected_dept)]
-if selected_modalidad:
-    df_filtered = df_filtered[df_filtered["modalidad"].isin(selected_modalidad)]
+if "departamento" in df_filtrado.columns:
+    df_filtrado = df_filtrado[df_filtrado["departamento"].isin(dep_sel)]
 
-st.markdown("## Vista rápida de los datos filtrados")
-st.dataframe(df_filtered.head(200))
+# ----------------------------------------
+# VISUALIZACIONES
+# ----------------------------------------
 
-# -------- Métricas rápidas --------
-st.markdown("## Métricas principales")
-col1, col2, col3 = st.columns(3)
-with col1:
-    total_acc = len(df_filtered)
-    st.metric("Registros (accidentes)", f"{total_acc:,}")
-with col2:
-    total_falls = int(df_filtered["fallecidos"].sum()) if "fallecidos" in df_filtered.columns else "N/A"
-    st.metric("Fallecidos (sum)", f"{total_falls:,}" if isinstance(total_falls, int) else total_falls)
-with col3:
-    total_inj = int(df_filtered["heridos"].sum()) if "heridos" in df_filtered.columns else "N/A"
-    st.metric("Heridos (sum)", f"{total_inj:,}" if isinstance(total_inj, int) else total_inj)
+st.subheader("📈 Evolución de accidentes por mes")
 
-# -------- Serie temporal (por mes) --------
-st.markdown("## Serie temporal (accidentes por mes)")
-if "fecha" in df_filtered.columns:
-    df_ts = df_filtered.set_index("fecha").resample("M").size().reset_index(name="n_accidentes")
-    chart = alt.Chart(df_ts).mark_line(point=True).encode(
-        x=alt.X("fecha:T", title="Fecha"),
-        y=alt.Y("n_accidentes:Q", title="Número de accidentes")
-    ).interactive()
+if "fecha" in df_filtrado.columns:
+    chart = (
+        alt.Chart(df_filtrado)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("yearmonth(fecha):T", title="Fecha"),
+            y=alt.Y("count():Q", title="Cantidad de accidentes"),
+            color="departamento:N"
+        )
+        .properties(height=400)
+        .interactive()
+    )
     st.altair_chart(chart, use_container_width=True)
 else:
-    st.info("No hay columna 'fecha' para crear la serie temporal.")
+    st.warning("No se encontró la columna de fechas en el dataset.")
 
-# -------- Top departamentos --------
-st.markdown("## Top departamentos por número de accidentes")
-if "departamento" in df_filtered.columns:
-    df_dept = df_filtered.groupby("departamento").agg(
-        accidentes=("departamento","size"),
-        fallecidos=("fallecidos","sum") if "fallecidos" in df_filtered.columns else pd.NamedAgg(column="departamento", aggfunc="size"),
-        heridos=("heridos","sum") if "heridos" in df_filtered.columns else pd.NamedAgg(column="departamento", aggfunc="size"),
-    ).reset_index().sort_values("accidentes", ascending=False)
-    st.table(df_dept.head(10))
-else:
-    st.info("No hay columna 'departamento' para agrupar.")
+st.subheader("💥 Distribución por tipo de accidente")
+if "modalidad" in df_filtrado.columns:
+    tipo_chart = (
+        alt.Chart(df_filtrado)
+        .mark_bar()
+        .encode(
+            x=alt.X("modalidad:N", title="Tipo de accidente"),
+            y=alt.Y("count():Q", title="Cantidad"),
+            color="modalidad:N"
+        )
+        .properties(height=400)
+    )
+    st.altair_chart(tipo_chart, use_container_width=True)
 
-# -------- Mapa (si hay lat/lon) --------
-st.markdown("## Mapa (si el dataset incluye coordenadas geográficas)")
-if ("lat" in df_filtered.columns and "lon" in df_filtered.columns) or ("latitude" in df_filtered.columns and "longitude" in df_filtered.columns):
-    lat_col = "lat" if "lat" in df_filtered.columns else "latitude"
-    lon_col = "lon" if "lon" in df_filtered.columns else "longitude"
-    map_df = df_filtered.dropna(subset=[lat_col, lon_col])
-    if not map_df.empty:
-        st.map(map_df[[lat_col, lon_col]])
-        st.success("Mapa cargado (Streamlit map). Para mapas más ricos usa pydeck/folium).")
-    else:
-        st.info("No se encontraron coordenadas en las filas filtradas.")
-else:
-    st.info("No se detectaron columnas de lat/lon en el dataset. Si existen con otros nombres, renómbralas a 'lat'/'lon' o 'latitude'/'longitude'.")
+# ----------------------------------------
+# MÉTRICAS
+# ----------------------------------------
 
-# -------- Exportar filtro actual a CSV --------
-st.markdown("### Exportar")
-csv_export = df_filtered.to_csv(index=False).encode("utf-8")
-st.download_button("Descargar CSV filtrado", csv_export, file_name="accidentes_filtrados.csv", mime="text/csv")
+col1, col2, col3 = st.columns(3)
+total_accidentes = len(df_filtrado)
+total_fallecidos = df_filtrado["fallecidos"].sum() if "fallecidos" in df_filtrado else 0
+total_heridos = df_filtrado["heridos"].sum() if "heridos" in df_filtrado else 0
 
+col1.metric("🚗 Accidentes totales", f"{total_accidentes:,}")
+col2.metric("☠️ Fallecidos", f"{total_fallecidos:,}")
+col3.metric("🤕 Heridos", f"{total_heridos:,}")
+
+# ----------------------------------------
+# PIE DE PÁGINA
+# ----------------------------------------
 st.markdown("---")
-st.markdown(
-    "### Notas:\n"
-    "- Revisa la **estructura de columnas** de tu CSV real y adapta los nombres en el script si fuera necesario.\n"
-    "- En la web del ONSV hay recursos separados (histórico 2008-2023, siniestros fatales 2021-2023, etc.).\n"
-    "- Si quieres, puedo adaptar el diseño (mapa con clustering, filtros más avanzados o dashboard en multipage)."
-)
+st.caption("Fuente: Ministerio de Transportes y Comunicaciones (MTC) - SUTRAN | Desarrollado por Justin Lavi 🧠")
