@@ -7,13 +7,20 @@ st.set_page_config(page_title="Apuntes de Obstetricia", layout="centered")
 
 # Título principal
 st.markdown("## 📘 Apuntes de Obstetricia")
-st.write("Organiza tus apuntes clínicos de forma sencilla y segura.")
+st.write("Organiza tus apuntes clínicos de forma sencilla, segura y visualmente atractiva.")
 
-# Tip clínico en la barra lateral
-st.sidebar.markdown("### 🧠 Tip clínico")
-st.sidebar.info("La preeclampsia se caracteriza por hipertensión y proteinuria después de la semana 20.")
+# Glosario clínico en la barra lateral
+glosario = {
+    "Preeclampsia": "Hipertensión + proteinuria después de la semana 20.",
+    "Corioamnionitis": "Infección de las membranas fetales.",
+    "Diabetes gestacional": "Intolerancia a la glucosa durante el embarazo.",
+    "Cesárea": "Intervención quirúrgica para extraer al bebé.",
+    "Parto prematuro": "Nacimiento antes de la semana 37."
+}
+termino = st.sidebar.selectbox("📖 Glosario clínico", list(glosario.keys()))
+st.sidebar.write(glosario[termino])
 
-# Lista de temas
+# Lista de temas y subtemas
 temas = [
     "Preeclampsia",
     "Parto prematuro",
@@ -27,12 +34,22 @@ temas = [
     "Embarazo adolescente"
 ]
 
+subtemas_dict = {
+    "Preeclampsia": ["Leve", "Grave", "Complicaciones"],
+    "Parto prematuro": ["Causas", "Tratamiento", "Prevención"],
+    "Cesárea": ["Indicaciones", "Postoperatorio", "Complicaciones"],
+    "Diabetes gestacional": ["Diagnóstico", "Control", "Riesgos"],
+    "Puerperio": ["Fisiológico", "Complicaciones", "Cuidados"]
+}
+
 # Tabs para navegación
-tab1, tab2, tab3 = st.tabs(["📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar"])
+tab1, tab2, tab3, tab4 = st.tabs(["📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio"])
 
 # TAB 1: Nuevo apunte
 with tab1:
     tema = st.selectbox("Selecciona el tema del apunte", temas)
+    subtemas = subtemas_dict.get(tema, [])
+    subtema = st.selectbox("Selecciona el subtema", subtemas) if subtemas else "General"
     contenido = st.text_area("Escribe tu apunte aquí", height=150)
     importante = st.checkbox("📌 Marcar como importante")
 
@@ -42,6 +59,7 @@ with tab1:
             nuevo = pd.DataFrame({
                 "Fecha": [fecha],
                 "Tema": [tema],
+                "Subtema": [subtema],
                 "Apunte": [contenido],
                 "Importante": ["Sí" if importante else "No"]
             })
@@ -68,6 +86,11 @@ with tab2:
         conteo.columns = ["Tema", "Cantidad"]
         st.table(conteo)
 
+        # Apuntes importantes
+        st.subheader("📌 Apuntes marcados como importantes")
+        importantes = apuntes[apuntes["Importante"] == "Sí"]
+        st.dataframe(importantes)
+
         # Descargar CSV
         st.download_button(
             label="📥 Descargar apuntes en CSV",
@@ -93,8 +116,25 @@ with tab3:
             resultados = apuntes[apuntes["Apunte"].str.contains(palabra, case=False, na=False)]
             st.write(f"Resultados para: '{palabra}'")
             st.dataframe(resultados)
+
+        # Filtro por fecha
+        st.subheader("📅 Filtrar por fecha")
+        fecha_filtrada = st.date_input("Selecciona una fecha")
+        filtrados = apuntes[apuntes["Fecha"].str.startswith(str(fecha_filtrada))]
+        st.dataframe(filtrados)
     except FileNotFoundError:
         st.info("No hay apuntes para buscar aún.")
+
+# TAB 4: Modo estudio
+with tab4:
+    st.subheader("🧪 Modo estudio (tarjetas de repaso)")
+    try:
+        apuntes = pd.read_csv("apuntes.csv")
+        for i, row in apuntes.iterrows():
+            with st.expander(f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"):
+                st.write(row["Apunte"])
+    except FileNotFoundError:
+        st.info("No hay apuntes para mostrar aún.")
 
 # Pie de página
 st.markdown("---")
