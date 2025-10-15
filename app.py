@@ -2,92 +2,142 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-# Configuración de la página
+# -------------------------
+# Configuración y constantes
+# -------------------------
 st.set_page_config(page_title="Apuntes de Obstetricia", layout="centered")
 
-# Columnas estándar
-COLUMNAS = ["Fecha", "Tipo", "Tema", "Subtema", "Contenido", "Importante"]
+COLUMNS = ["Fecha", "Tipo", "Tema", "Subtema", "Contenido", "Importante"]
+CSV_PATH = "apuntes.csv"
 
-# Cargar datos o inicializar vacío
-try:
-    datos = pd.read_csv("apuntes.csv")
-    # Si faltan columnas, las agregamos
-    for col in COLUMNAS:
-        if col not in datos.columns:
-            datos[col] = ""
-except FileNotFoundError:
-    datos = pd.DataFrame(columns=COLUMNAS)
-
-# Glosario clínico en la barra lateral
-glosario = {
-    "Preeclampsia": "Hipertensión + proteinuria después de la semana 20.",
-    "Corioamnionitis": "Infección de las membranas fetales.",
-    "Diabetes gestacional": "Intolerancia a la glucosa durante el embarazo.",
-    "Cesárea": "Intervención quirúrgica para extraer al bebé.",
-    "Parto prematuro": "Nacimiento antes de la semana 37."
-}
-termino = st.sidebar.selectbox("📖 Glosario clínico", list(glosario.keys()))
-st.sidebar.write(glosario[termino])
-
-# Lista de temas y subtemas
-temas = [
-    "Preeclampsia", "Parto prematuro", "Cesárea", "Corioamnionitis",
-    "Diabetes gestacional", "Hemorragia del primer trimestre",
-    "Síndromes hipertensivos", "Infección intraamniótica",
-    "Puerperio", "Embarazo adolescente"
+TEMAS = [
+    "Preeclampsia",
+    "Parto prematuro",
+    "Cesárea",
+    "Corioamnionitis",
+    "Diabetes gestacional",
+    "Hemorragia del primer trimestre",
+    "Síndromes hipertensivos",
+    "Infección intraamniótica",
+    "Puerperio",
+    "Embarazo adolescente",
 ]
 
-subtemas_dict = {
+SUBTEMAS = {
     "Preeclampsia": ["Leve", "Grave", "Complicaciones"],
     "Parto prematuro": ["Causas", "Tratamiento", "Prevención"],
     "Cesárea": ["Indicaciones", "Postoperatorio", "Complicaciones"],
     "Diabetes gestacional": ["Diagnóstico", "Control", "Riesgos"],
-    "Puerperio": ["Fisiológico", "Complicaciones", "Cuidados"]
+    "Puerperio": ["Fisiológico", "Complicaciones", "Cuidados"],
 }
 
-# Tabs
+GLOSARIO = {
+    "Preeclampsia": "Hipertensión + proteinuria después de la semana 20.",
+    "Corioamnionitis": "Infección de las membranas fetales.",
+    "Diabetes gestacional": "Intolerancia a la glucosa durante el embarazo.",
+    "Cesárea": "Intervención quirúrgica para extraer al bebé.",
+    "Parto prematuro": "Nacimiento antes de la semana 37.",
+}
+
+# -------------------------
+# Utilidades de datos
+# -------------------------
+def ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
+    """Garantiza que el DataFrame tenga exactamente las columnas esperadas."""
+    if df is None or df.empty:
+        return pd.DataFrame(columns=COLUMNS)
+    # Agregar columnas faltantes
+    for col in COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+    # Reordenar columnas
+    return df[COLUMNS]
+
+@st.cache_data(show_spinner=False)
+def load_data() -> pd.DataFrame:
+    """Carga datos desde CSV con esquema robusto."""
+    try:
+        df = pd.read_csv(CSV_PATH)
+        return ensure_schema(df)
+    except FileNotFoundError:
+        return pd.DataFrame(columns=COLUMNS)
+    except Exception:
+        # Si el CSV está corrupto o con separadores raros, inicializa vacío
+        return pd.DataFrame(columns=COLUMNS)
+
+def save_data(df: pd.DataFrame) -> None:
+    """Guarda datos a CSV garantizando esquema."""
+    df = ensure_schema(df)
+    df.to_csv(CSV_PATH, index=False)
+
+def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante: bool) -> None:
+    """Agrega un registro (Apunte/Pregunta) al CSV."""
+    df = load_data()
+    nuevo = pd.DataFrame([{
+        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Tipo": tipo,
+        "Tema": tema,
+        "Subtema": subtema if subtema else "General",
+        "Contenido": contenido,
+        "Importante": "Sí" if importante else "No",
+    }])
+    df = pd.concat([df, nuevo], ignore_index=True)
+    save_data(df)
+    # Limpiar cache para reflejar cambios inmediatamente
+    st.cache_data.clear()
+
+# -------------------------
+# Interfaz
+# -------------------------
+st.markdown("## 📘 Apuntes de Obstetricia")
+st.write("Organiza tus apuntes clínicos y preguntas de forma sencilla, segura y visualmente atractiva.")
+
+# Glosario en barra lateral
+termino = st.sidebar.selectbox("📖 Glosario clínico", list(GLOSARIO.keys()))
+st.sidebar.info(GLOSARIO[termino])
+
+# Pestañas
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio", "❓ Haz una pregunta"
 ])
 
-# TAB 1: Nuevo apunte
+# -------------------------
+# Tab 1: Nuevo apunte
+# -------------------------
 with tab1:
-    tema = st.selectbox("Selecciona el tema del apunte", temas)
-    subtemas = subtemas_dict.get(tema, [])
-    subtema = st.selectbox("Selecciona el subtema", subtemas) if subtemas else "General"
+    tema = st.selectbox("Selecciona el tema del apunte", TEMAS)
+    subopciones = SUBTEMAS.get(tema, [])
+    subtema = st.selectbox("Selecciona el subtema", subopciones) if subopciones else "General"
     contenido = st.text_area("Escribe tu apunte aquí", height=150)
     importante = st.checkbox("📌 Marcar como importante")
 
     if st.button("Guardar apunte"):
         if contenido.strip():
-            fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-            nuevo = pd.DataFrame([{
-                "Fecha": fecha,
-                "Tipo": "Apunte",
-                "Tema": tema,
-                "Subtema": subtema,
-                "Contenido": contenido,
-                "Importante": "Sí" if importante else "No"
-            }])
-            datos = pd.concat([datos, nuevo], ignore_index=True)
-            datos.to_csv("apuntes.csv", index=False)
+            append_record("Apunte", tema, subtema, contenido, importante)
             st.success("✅ Apunte guardado correctamente.")
         else:
             st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
 
-# TAB 2: Ver apuntes
+# -------------------------
+# Tab 2: Ver apuntes
+# -------------------------
 with tab2:
     st.subheader("📚 Apuntes guardados")
-    apuntes = datos[datos["Tipo"] == "Apunte"] if "Tipo" in datos else pd.DataFrame(columns=COLUMNAS)
+    datos = load_data()
+    apuntes = datos[datos["Tipo"] == "Apunte"] if not datos.empty else pd.DataFrame(columns=COLUMNS)
+
     if not apuntes.empty:
         st.dataframe(apuntes)
 
         st.subheader("📊 Cantidad de apuntes por tema")
-        conteo = apuntes["Tema"].value_counts().reset_index()
-        conteo.columns = ["Tema", "Cantidad"]
+        conteo = (
+            apuntes["Tema"].value_counts()
+            .rename_axis("Tema")
+            .reset_index(name="Cantidad")
+        )
         st.table(conteo)
 
-        st.subheader("📌 Apuntes importantes")
+        st.subheader("📌 Apuntes marcados como importantes")
         importantes = apuntes[apuntes["Importante"] == "Sí"]
         st.dataframe(importantes)
 
@@ -95,62 +145,63 @@ with tab2:
             label="📥 Descargar todos los registros en CSV",
             data=datos.to_csv(index=False).encode("utf-8"),
             file_name="apuntes_obstetricia.csv",
-            mime="text/csv"
+            mime="text/csv",
         )
     else:
         st.info("Aún no hay apuntes guardados.")
 
-# TAB 3: Buscar
+# -------------------------
+# Tab 3: Buscar
+# -------------------------
 with tab3:
     st.subheader("🔎 Buscar por palabra clave")
-    palabra = st.text_input("Escribe una palabra para buscar en apuntes")
-    if palabra and "Contenido" in datos:
+    datos = load_data()
+    palabra = st.text_input("Escribe una palabra para buscar en apuntes y preguntas")
+
+    if palabra and not datos.empty:
         resultados = datos[datos["Contenido"].str.contains(palabra, case=False, na=False)]
         st.dataframe(resultados)
 
     st.subheader("📅 Filtrar por fecha")
-    fecha_filtrada = st.date_input("Selecciona una fecha")
-    if "Fecha" in datos:
-        filtrados = datos[datos["Fecha"].str.startswith(str(fecha_filtrada))]
+    fecha = st.date_input("Selecciona una fecha")
+    if not datos.empty:
+        filtrados = datos[datos["Fecha"].str.startswith(str(fecha))]
         st.dataframe(filtrados)
 
-# TAB 4: Modo estudio
+# -------------------------
+# Tab 4: Modo estudio
+# -------------------------
 with tab4:
     st.subheader("🧪 Tarjetas de repaso")
-    apuntes = datos[datos["Tipo"] == "Apunte"] if "Tipo" in datos else pd.DataFrame(columns=COLUMNAS)
+    datos = load_data()
+    apuntes = datos[datos["Tipo"] == "Apunte"] if not datos.empty else pd.DataFrame(columns=COLUMNS)
+
     if not apuntes.empty:
         for _, row in apuntes.iterrows():
-            with st.expander(f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"):
+            titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"
+            with st.expander(titulo):
                 st.write(row["Contenido"])
     else:
         st.info("No hay apuntes para mostrar aún.")
 
-# TAB 5: Haz una pregunta
+# -------------------------
+# Tab 5: Haz una pregunta
+# -------------------------
 with tab5:
     st.subheader("❓ Haz una pregunta clínica")
-    tema = st.selectbox("Tema relacionado", temas)
-    subtemas = subtemas_dict.get(tema, [])
-    subtema = st.selectbox("Subtema", subtemas) if subtemas else "General"
-    pregunta = st.text_area("Escribe tu pregunta aquí", height=150)
-    importante = st.checkbox("📌 Marcar como importante")
+    tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
+    subs_q = SUBTEMAS.get(tema_q, [])
+    subtema_q = st.selectbox("Subtema", subs_q, key="subtema_q") if subs_q else "General"
+    pregunta = st.text_area("Escribe tu pregunta aquí", height=150, key="pregunta_q")
+    importante_q = st.checkbox("📌 Marcar como importante", key="importante_q")
 
     if st.button("Guardar pregunta"):
         if pregunta.strip():
-            fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-            nueva_pregunta = pd.DataFrame([{
-                "Fecha": fecha,
-                "Tipo": "Pregunta",
-                "Tema": tema,
-                "Subtema": subtema,
-                "Contenido": pregunta,
-                "Importante": "Sí" if importante else "No"
-            }])
-            datos = pd.concat([datos, nueva_pregunta], ignore_index=True)
-            datos.to_csv("apuntes.csv", index=False)
+            append_record("Pregunta", tema_q, subtema_q, pregunta, importante_q)
             st.success("✅ Pregunta guardada correctamente.")
         else:
             st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
 
 # Pie de página
 st.markdown("---")
-st.caption("App educativa basada en temas reales de obstetricia. Fuentes: uDocz, Docsity.")
+st.caption("App educativa basada en temas reales de obstetricia.")
