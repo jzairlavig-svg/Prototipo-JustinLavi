@@ -43,7 +43,9 @@ subtemas_dict = {
 }
 
 # Tabs para navegación
-tab1, tab2, tab3, tab4 = st.tabs(["📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio", "❓ Haz una pregunta"
+])
 
 # TAB 1: Nuevo apunte
 with tab1:
@@ -58,9 +60,10 @@ with tab1:
             fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
             nuevo = pd.DataFrame({
                 "Fecha": [fecha],
+                "Tipo": ["Apunte"],
                 "Tema": [tema],
                 "Subtema": [subtema],
-                "Apunte": [contenido],
+                "Contenido": [contenido],
                 "Importante": ["Sí" if importante else "No"]
             })
             try:
@@ -77,7 +80,8 @@ with tab1:
 with tab2:
     st.subheader("📚 Apuntes guardados")
     try:
-        apuntes = pd.read_csv("apuntes.csv")
+        datos = pd.read_csv("apuntes.csv")
+        apuntes = datos[datos["Tipo"] == "Apunte"]
         st.dataframe(apuntes)
 
         # Conteo por tema
@@ -94,7 +98,7 @@ with tab2:
         # Descargar CSV
         st.download_button(
             label="📥 Descargar apuntes en CSV",
-            data=apuntes.to_csv(index=False).encode("utf-8"),
+            data=datos.to_csv(index=False).encode("utf-8"),
             file_name="apuntes_obstetricia.csv",
             mime="text/csv"
         )
@@ -111,9 +115,10 @@ with tab3:
     st.subheader("🔎 Buscar apuntes")
     palabra = st.text_input("Busca por palabra clave")
     try:
-        apuntes = pd.read_csv("apuntes.csv")
+        datos = pd.read_csv("apuntes.csv")
+        apuntes = datos[datos["Tipo"] == "Apunte"]
         if palabra:
-            resultados = apuntes[apuntes["Apunte"].str.contains(palabra, case=False, na=False)]
+            resultados = apuntes[apuntes["Contenido"].str.contains(palabra, case=False, na=False)]
             st.write(f"Resultados para: '{palabra}'")
             st.dataframe(resultados)
 
@@ -129,12 +134,43 @@ with tab3:
 with tab4:
     st.subheader("🧪 Modo estudio (tarjetas de repaso)")
     try:
-        apuntes = pd.read_csv("apuntes.csv")
+        datos = pd.read_csv("apuntes.csv")
+        apuntes = datos[datos["Tipo"] == "Apunte"]
         for i, row in apuntes.iterrows():
             with st.expander(f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"):
-                st.write(row["Apunte"])
+                st.write(row["Contenido"])
     except FileNotFoundError:
         st.info("No hay apuntes para mostrar aún.")
+
+# TAB 5: Haz una pregunta
+with tab5:
+    st.subheader("❓ Haz una pregunta clínica")
+    tema = st.selectbox("Tema relacionado", temas)
+    subtemas = subtemas_dict.get(tema, [])
+    subtema = st.selectbox("Subtema", subtemas) if subtemas else "General"
+    pregunta = st.text_area("Escribe tu pregunta aquí", height=150)
+    importante = st.checkbox("📌 Marcar como importante")
+
+    if st.button("Guardar pregunta"):
+        if pregunta.strip() != "":
+            fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+            nueva_pregunta = pd.DataFrame({
+                "Fecha": [fecha],
+                "Tipo": ["Pregunta"],
+                "Tema": [tema],
+                "Subtema": [subtema],
+                "Contenido": [pregunta],
+                "Importante": ["Sí" if importante else "No"]
+            })
+            try:
+                datos = pd.read_csv("apuntes.csv")
+                datos = pd.concat([datos, nueva_pregunta], ignore_index=True)
+            except FileNotFoundError:
+                datos = nueva_pregunta
+            datos.to_csv("apuntes.csv", index=False)
+            st.success("✅ Pregunta guardada correctamente.")
+        else:
+            st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
 
 # Pie de página
 st.markdown("---")
