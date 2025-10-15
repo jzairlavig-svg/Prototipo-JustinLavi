@@ -7,7 +7,7 @@ st.set_page_config(page_title="Apuntes de Obstetricia", layout="centered")
 
 # Título principal
 st.markdown("## 📘 Apuntes de Obstetricia")
-st.write("Organiza tus apuntes clínicos de forma sencilla, segura y visualmente atractiva.")
+st.write("Organiza tus apuntes clínicos y preguntas de forma sencilla, segura y visualmente atractiva.")
 
 # Glosario clínico en la barra lateral
 glosario = {
@@ -42,6 +42,12 @@ subtemas_dict = {
     "Puerperio": ["Fisiológico", "Complicaciones", "Cuidados"]
 }
 
+# Cargar datos existentes
+try:
+    datos = pd.read_csv("apuntes.csv")
+except FileNotFoundError:
+    datos = pd.DataFrame(columns=["Fecha", "Tipo", "Tema", "Subtema", "Contenido", "Importante"])
+
 # Tabs para navegación
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio", "❓ Haz una pregunta"
@@ -56,7 +62,7 @@ with tab1:
     importante = st.checkbox("📌 Marcar como importante")
 
     if st.button("Guardar apunte"):
-        if contenido.strip() != "":
+        if contenido.strip():
             fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
             nuevo = pd.DataFrame({
                 "Fecha": [fecha],
@@ -66,11 +72,7 @@ with tab1:
                 "Contenido": [contenido],
                 "Importante": ["Sí" if importante else "No"]
             })
-            try:
-                datos = pd.read_csv("apuntes.csv")
-                datos = pd.concat([datos, nuevo], ignore_index=True)
-            except FileNotFoundError:
-                datos = nuevo
+            datos = pd.concat([datos, nuevo], ignore_index=True)
             datos.to_csv("apuntes.csv", index=False)
             st.success("✅ Apunte guardado correctamente.")
         else:
@@ -79,68 +81,50 @@ with tab1:
 # TAB 2: Ver apuntes
 with tab2:
     st.subheader("📚 Apuntes guardados")
-    try:
-        datos = pd.read_csv("apuntes.csv")
-        apuntes = datos[datos["Tipo"] == "Apunte"]
-        st.dataframe(apuntes)
+    apuntes = datos[datos["Tipo"] == "Apunte"]
+    st.dataframe(apuntes)
 
-        # Conteo por tema
-        st.subheader("📊 Cantidad de apuntes por tema")
-        conteo = apuntes["Tema"].value_counts().reset_index()
-        conteo.columns = ["Tema", "Cantidad"]
-        st.table(conteo)
+    st.subheader("📊 Cantidad de apuntes por tema")
+    conteo = apuntes["Tema"].value_counts().reset_index()
+    conteo.columns = ["Tema", "Cantidad"]
+    st.table(conteo)
 
-        # Apuntes importantes
-        st.subheader("📌 Apuntes marcados como importantes")
-        importantes = apuntes[apuntes["Importante"] == "Sí"]
-        st.dataframe(importantes)
+    st.subheader("📌 Apuntes importantes")
+    importantes = apuntes[apuntes["Importante"] == "Sí"]
+    st.dataframe(importantes)
 
-        # Descargar CSV
-        st.download_button(
-            label="📥 Descargar apuntes en CSV",
-            data=datos.to_csv(index=False).encode("utf-8"),
-            file_name="apuntes_obstetricia.csv",
-            mime="text/csv"
-        )
+    st.download_button(
+        label="📥 Descargar todos los registros en CSV",
+        data=datos.to_csv(index=False).encode("utf-8"),
+        file_name="apuntes_obstetricia.csv",
+        mime="text/csv"
+    )
 
-        # Borrar apuntes
-        if st.button("🧹 Borrar todos los apuntes"):
-            st.warning("⚠️ Esta acción eliminará todos los apuntes guardados.")
-            st.write("Para borrar, elimina manualmente el archivo 'apuntes.csv' desde tu carpeta.")
-    except FileNotFoundError:
-        st.info("Aún no hay apuntes guardados.")
+    if st.button("🧹 Borrar todos los registros"):
+        st.warning("⚠️ Esta acción eliminará todos los apuntes y preguntas guardadas.")
+        st.write("Para borrar, elimina manualmente el archivo 'apuntes.csv' desde tu carpeta.")
 
-# TAB 3: Buscar apuntes
+# TAB 3: Buscar
 with tab3:
-    st.subheader("🔎 Buscar apuntes")
-    palabra = st.text_input("Busca por palabra clave")
-    try:
-        datos = pd.read_csv("apuntes.csv")
-        apuntes = datos[datos["Tipo"] == "Apunte"]
-        if palabra:
-            resultados = apuntes[apuntes["Contenido"].str.contains(palabra, case=False, na=False)]
-            st.write(f"Resultados para: '{palabra}'")
-            st.dataframe(resultados)
+    st.subheader("🔎 Buscar por palabra clave")
+    palabra = st.text_input("Escribe una palabra para buscar en apuntes")
+    if palabra:
+        resultados = datos[datos["Contenido"].str.contains(palabra, case=False, na=False)]
+        st.write(f"Resultados para: '{palabra}'")
+        st.dataframe(resultados)
 
-        # Filtro por fecha
-        st.subheader("📅 Filtrar por fecha")
-        fecha_filtrada = st.date_input("Selecciona una fecha")
-        filtrados = apuntes[apuntes["Fecha"].str.startswith(str(fecha_filtrada))]
-        st.dataframe(filtrados)
-    except FileNotFoundError:
-        st.info("No hay apuntes para buscar aún.")
+    st.subheader("📅 Filtrar por fecha")
+    fecha_filtrada = st.date_input("Selecciona una fecha")
+    filtrados = datos[datos["Fecha"].str.startswith(str(fecha_filtrada))]
+    st.dataframe(filtrados)
 
 # TAB 4: Modo estudio
 with tab4:
-    st.subheader("🧪 Modo estudio (tarjetas de repaso)")
-    try:
-        datos = pd.read_csv("apuntes.csv")
-        apuntes = datos[datos["Tipo"] == "Apunte"]
-        for i, row in apuntes.iterrows():
-            with st.expander(f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"):
-                st.write(row["Contenido"])
-    except FileNotFoundError:
-        st.info("No hay apuntes para mostrar aún.")
+    st.subheader("🧪 Tarjetas de repaso")
+    apuntes = datos[datos["Tipo"] == "Apunte"]
+    for i, row in apuntes.iterrows():
+        with st.expander(f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"):
+            st.write(row["Contenido"])
 
 # TAB 5: Haz una pregunta
 with tab5:
@@ -152,7 +136,7 @@ with tab5:
     importante = st.checkbox("📌 Marcar como importante")
 
     if st.button("Guardar pregunta"):
-        if pregunta.strip() != "":
+        if pregunta.strip():
             fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
             nueva_pregunta = pd.DataFrame({
                 "Fecha": [fecha],
@@ -162,11 +146,7 @@ with tab5:
                 "Contenido": [pregunta],
                 "Importante": ["Sí" if importante else "No"]
             })
-            try:
-                datos = pd.read_csv("apuntes.csv")
-                datos = pd.concat([datos, nueva_pregunta], ignore_index=True)
-            except FileNotFoundError:
-                datos = nueva_pregunta
+            datos = pd.concat([datos, nueva_pregunta], ignore_index=True)
             datos.to_csv("apuntes.csv", index=False)
             st.success("✅ Pregunta guardada correctamente.")
         else:
