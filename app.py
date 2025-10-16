@@ -90,18 +90,24 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # Tab 1: Nuevo apunte
 # -------------------------
 with tab1:
-    tema = st.selectbox("Selecciona el tema del apunte", TEMAS)
+    modo_tema = st.radio("¿Cómo quieres ingresar el tema?", ["Seleccionar", "Escribir"])
+    if modo_tema == "Seleccionar":
+        tema = st.selectbox("Selecciona el tema del apunte", TEMAS)
+    else:
+        tema = st.text_input("Escribe el tema del apunte")
+
     subopciones = SUBTEMAS.get(tema, [])
     subtema = st.selectbox("Selecciona el subtema", subopciones) if subopciones else "General"
+
     contenido = st.text_area("Escribe tu apunte aquí", height=150)
     importante = st.checkbox("📌 Marcar como importante")
 
     if st.button("Guardar apunte"):
-        if contenido.strip():
+        if contenido.strip() and tema.strip():
             append_record("Apunte", tema, subtema, contenido, importante)
             st.success("✅ Apunte guardado correctamente.")
         else:
-            st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
+            st.warning("⚠️ El campo de tema o contenido está vacío.")
 
 # -------------------------
 # Tab 2: Ver apuntes
@@ -175,18 +181,24 @@ with tab4:
 # -------------------------
 with tab5:
     st.subheader("❓ Haz una pregunta clínica")
-    tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
+    modo_tema_q = st.radio("¿Cómo quieres ingresar el tema?", ["Seleccionar", "Escribir"], key="modo_tema_q")
+    if modo_tema_q == "Seleccionar":
+        tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
+    else:
+        tema_q = st.text_input("Escribe el tema relacionado", key="tema_q_input")
+
     subs_q = SUBTEMAS.get(tema_q, [])
     subtema_q = st.selectbox("Subtema", subs_q, key="subtema_q") if subs_q else "General"
+
     pregunta = st.text_area("Escribe tu pregunta aquí", height=150, key="pregunta_q")
     importante_q = st.checkbox("📌 Marcar como importante", key="importante_q")
 
     if st.button("Guardar pregunta"):
-        if pregunta.strip():
+        if pregunta.strip() and tema_q.strip():
             append_record("Pregunta", tema_q, subtema_q, pregunta, importante_q)
             st.success("✅ Pregunta guardada correctamente.")
         else:
-            st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
+            st.warning("⚠️ El campo de tema o pregunta está vacío.")
 
 st.markdown("---")
 st.caption("App educativa basada en temas reales de obstetricia.")
