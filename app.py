@@ -4,10 +4,43 @@ from datetime import datetime
 from pathlib import Path
 
 # -------------------------
-# Configuración y constantes
+# Configuración y estilo
 # -------------------------
 st.set_page_config(page_title="Apuntes de Obstetricia", layout="centered")
 
+st.markdown("""
+    <style>
+    h1, h2, h3, h4 {
+        font-family: 'Georgia', serif;
+        color: #2E86C1;
+    }
+    .titulo {
+        font-size: 28px;
+        font-weight: bold;
+        color: #117A65;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .importante {
+        background-color: #F9EBEA;
+        border-left: 5px solid #C0392B;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-family: 'Verdana';
+    }
+    .normal {
+        background-color: #EAF2F8;
+        border-left: 5px solid #2980B9;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-family: 'Verdana';
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# -------------------------
+# Constantes
+# -------------------------
 COLUMNS = ["Fecha", "Tipo", "Tema", "Subtema", "Contenido", "Importante"]
 CSV_PATH = "apuntes.csv"
 
@@ -76,7 +109,7 @@ def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante
 # -------------------------
 # Interfaz
 # -------------------------
-st.markdown("## 📘 Apuntes de Obstetricia")
+st.markdown("<div class='titulo'>📘 Apuntes de Obstetricia</div>", unsafe_allow_html=True)
 st.write("Organiza tus apuntes clínicos y preguntas de forma sencilla, segura y visualmente atractiva.")
 
 termino = st.sidebar.selectbox("📖 Glosario clínico", list(GLOSARIO.keys()))
@@ -118,7 +151,14 @@ with tab2:
     apuntes = datos[datos["Tipo"] == "Apunte"] if not datos.empty else pd.DataFrame(columns=COLUMNS)
 
     if not apuntes.empty:
-        st.dataframe(apuntes)
+        for _, row in apuntes.iterrows():
+            estilo = "importante" if row["Importante"] == "Sí" else "normal"
+            st.markdown(f"""
+                <div class="{estilo}">
+                    <strong>{row['Fecha']} - {row['Tema']} ({row['Subtema']})</strong><br>
+                    {row['Contenido']}
+                </div>
+            """, unsafe_allow_html=True)
 
         st.subheader("📊 Cantidad de apuntes por tema")
         conteo = (
@@ -127,10 +167,6 @@ with tab2:
             .reset_index(name="Cantidad")
         )
         st.table(conteo)
-
-        st.subheader("📌 Apuntes marcados como importantes")
-        importantes = apuntes[apuntes["Importante"] == "Sí"]
-        st.dataframe(importantes)
 
         st.download_button(
             label="📥 Descargar todos los registros en CSV",
@@ -187,18 +223,4 @@ with tab5:
     else:
         tema_q = st.text_input("Escribe el tema relacionado", key="tema_q_input")
 
-    subs_q = SUBTEMAS.get(tema_q, [])
-    subtema_q = st.selectbox("Subtema", subs_q, key="subtema_q") if subs_q else "General"
-
-    pregunta = st.text_area("Escribe tu pregunta aquí", height=150, key="pregunta_q")
-    importante_q = st.checkbox("📌 Marcar como importante", key="importante_q")
-
-    if st.button("Guardar pregunta"):
-        if pregunta.strip() and tema_q.strip():
-            append_record("Pregunta", tema_q, subtema_q, pregunta, importante_q)
-            st.success("✅ Pregunta guardada correctamente.")
-        else:
-            st.warning("⚠️ El campo de tema o pregunta está vacío.")
-
-st.markdown("---")
-st.caption("App educativa basada en temas reales de obstetricia.")
+    subs_q
