@@ -73,6 +73,12 @@ def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante
     save_data(df)
     st.cache_data.clear()
 
+def delete_record(fecha: str) -> None:
+    df = load_data()
+    df = df[df["Fecha"] != fecha]
+    save_data(df)
+    st.cache_data.clear()
+
 # -------------------------
 # Interfaz
 # -------------------------
@@ -118,7 +124,14 @@ with tab2:
     apuntes = datos[datos["Tipo"] == "Apunte"] if not datos.empty else pd.DataFrame(columns=COLUMNS)
 
     if not apuntes.empty:
-        st.dataframe(apuntes)
+        for _, row in apuntes.iterrows():
+            with st.expander(f"{row['Fecha']} - {row['Tema']} ({row['Subtema']})"):
+                st.write(row["Contenido"])
+                st.write(f"📌 Importante: {row['Importante']}")
+                if st.button(f"🗑️ Eliminar apunte", key=f"del_{row['Fecha']}"):
+                    delete_record(row["Fecha"])
+                    st.success("✅ Apunte eliminado correctamente.")
+                    st.experimental_rerun()
 
         st.subheader("📊 Cantidad de apuntes por tema")
         conteo = (
@@ -197,8 +210,3 @@ with tab5:
         if pregunta.strip() and tema_q.strip():
             append_record("Pregunta", tema_q, subtema_q, pregunta, importante_q)
             st.success("✅ Pregunta guardada correctamente.")
-        else:
-            st.warning("⚠️ El campo de tema o pregunta está vacío.")
-
-st.markdown("---")
-st.caption("App educativa basada en temas reales de obstetricia.")
