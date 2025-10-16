@@ -62,7 +62,7 @@ def save_data(df: pd.DataFrame) -> None:
 def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante: bool) -> None:
     df = load_data()
     nuevo = pd.DataFrame([{
-        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Tipo": tipo,
         "Tema": tema,
         "Subtema": subtema if subtema else "General",
@@ -113,7 +113,7 @@ with tab1:
             append_record("Apunte", tema, subtema, contenido, importante)
             st.success("✅ Apunte guardado correctamente.")
         else:
-            st.warning("⚠️ El campo de tema o contenido está vacío.")
+            st.warning("⚠ El campo de tema o contenido está vacío.")
 
 # -------------------------
 # Tab 2: Ver apuntes
@@ -128,7 +128,7 @@ with tab2:
             with st.expander(f"{row['Fecha']} - {row['Tema']} ({row['Subtema']})"):
                 st.write(row["Contenido"])
                 st.write(f"📌 Importante: {row['Importante']}")
-                if st.button(f"🗑️ Eliminar apunte", key=f"del_{row['Fecha']}"):
+                if st.button("🗑 Eliminar apunte", key=f"del_apunte_{row['Fecha']}"):
                     delete_record(row["Fecha"])
                     st.success("✅ Apunte eliminado correctamente.")
                     st.experimental_rerun()
@@ -164,14 +164,34 @@ with tab3:
 
     if palabra and not datos.empty:
         resultados = datos[datos["Contenido"].astype(str).str.contains(palabra, case=False, na=False)]
-        st.dataframe(resultados)
+        if not resultados.empty:
+            for _, row in resultados.iterrows():
+                with st.expander(f"{row['Fecha']} - {row['Tipo']} - {row['Tema']} ({row['Subtema']})"):
+                    st.write(row["Contenido"])
+                    st.write(f"📌 Importante: {row['Importante']}")
+                    if st.button("🗑 Eliminar", key=f"del_buscar_{row['Fecha']}"):
+                        delete_record(row["Fecha"])
+                        st.success("✅ Registro eliminado correctamente.")
+                        st.experimental_rerun()
+        else:
+            st.info("No se encontraron resultados.")
 
     st.subheader("📅 Filtrar por fecha")
     fecha = st.date_input("Selecciona una fecha")
     if not datos.empty:
         datos["Fecha"] = datos["Fecha"].astype(str)
         filtrados = datos[datos["Fecha"].str.startswith(str(fecha))]
-        st.dataframe(filtrados)
+        if not filtrados.empty:
+            for _, row in filtrados.iterrows():
+                with st.expander(f"{row['Fecha']} - {row['Tipo']} - {row['Tema']} ({row['Subtema']})"):
+                    st.write(row["Contenido"])
+                    st.write(f"📌 Importante: {row['Importante']}")
+                    if st.button("🗑 Eliminar", key=f"del_fecha_{row['Fecha']}"):
+                        delete_record(row["Fecha"])
+                        st.success("✅ Registro eliminado correctamente.")
+                        st.experimental_rerun()
+        else:
+            st.info("No hay registros para esa fecha.")
 
 # -------------------------
 # Tab 4: Modo estudio
@@ -186,27 +206,4 @@ with tab4:
             titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"
             with st.expander(titulo):
                 st.write(row["Contenido"])
-    else:
-        st.info("No hay apuntes para mostrar aún.")
-
-# -------------------------
-# Tab 5: Haz una pregunta
-# -------------------------
-with tab5:
-    st.subheader("❓ Haz una pregunta clínica")
-    modo_tema_q = st.radio("¿Cómo quieres ingresar el tema?", ["Seleccionar", "Escribir"], key="modo_tema_q")
-    if modo_tema_q == "Seleccionar":
-        tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
-    else:
-        tema_q = st.text_input("Escribe el tema relacionado", key="tema_q_input")
-
-    subs_q = SUBTEMAS.get(tema_q, [])
-    subtema_q = st.selectbox("Subtema", subs_q, key="subtema_q") if subs_q else "General"
-
-    pregunta = st.text_area("Escribe tu pregunta aquí", height=150, key="pregunta_q")
-    importante_q = st.checkbox("📌 Marcar como importante", key="importante_q")
-
-    if st.button("Guardar pregunta"):
-        if pregunta.strip() and tema_q.strip():
-            append_record("Pregunta", tema_q, subtema_q, pregunta, importante_q)
-            st.success("✅ Pregunta guardada correctamente.")
+                if st.button("🗑 Eliminar apunte", key=f"del_estudio_{row['Fecha']}
