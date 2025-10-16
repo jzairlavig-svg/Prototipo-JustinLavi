@@ -203,7 +203,4 @@ with tab4:
 
     if not apuntes.empty:
         for _, row in apuntes.iterrows():
-            titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha']})"
-            with st.expander(titulo):
-                st.write(row["Contenido"])
-                if st.button("🗑 Eliminar apunte", key=f"del_estudio_{row['Fecha']}
+            titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha
