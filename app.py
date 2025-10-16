@@ -222,4 +222,4 @@ with tab5:
     if modo_tema_q == "Seleccionar":
         tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
     else:
-        tema
+        tema_q = st.text_input("Escribe el
