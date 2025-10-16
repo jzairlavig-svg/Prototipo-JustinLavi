@@ -203,4 +203,4 @@ with tab4:
 
     if not apuntes.empty:
         for _, row in apuntes.iterrows():
-            titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha
+            titulo = f"{row['Tema']} - {row['Subtema']} ({row['Fecha']
