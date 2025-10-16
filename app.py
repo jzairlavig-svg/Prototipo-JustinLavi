@@ -222,4 +222,7 @@ with tab5:
     if modo_tema_q == "Seleccionar":
         tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
     else:
-        tema_q = st.text_input("Escribe el
+        tema_q = st.text_input("Escribe el tema relacionado", key="tema_q_input")
+
+    subopciones_q = SUBTEMAS.get(tema_q, [])
+    subtema_q = st.selectbox("Subtema", subopciones_q, key="sub
