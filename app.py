@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
 # -------------------------
 # Configuración y constantes
@@ -11,16 +12,10 @@ COLUMNS = ["Fecha", "Tipo", "Tema", "Subtema", "Contenido", "Importante"]
 CSV_PATH = "apuntes.csv"
 
 TEMAS = [
-    "Preeclampsia",
-    "Parto prematuro",
-    "Cesárea",
-    "Corioamnionitis",
-    "Diabetes gestacional",
-    "Hemorragia del primer trimestre",
-    "Síndromes hipertensivos",
-    "Infección intraamniótica",
-    "Puerperio",
-    "Embarazo adolescente",
+    "Preeclampsia", "Parto prematuro", "Cesárea", "Corioamnionitis",
+    "Diabetes gestacional", "Hemorragia del primer trimestre",
+    "Síndromes hipertensivos", "Infección intraamniótica",
+    "Puerperio", "Embarazo adolescente",
 ]
 
 SUBTEMAS = {
@@ -43,35 +38,28 @@ GLOSARIO = {
 # Utilidades de datos
 # -------------------------
 def ensure_schema(df: pd.DataFrame) -> pd.DataFrame:
-    """Garantiza que el DataFrame tenga exactamente las columnas esperadas."""
     if df is None or df.empty:
         return pd.DataFrame(columns=COLUMNS)
-    # Agregar columnas faltantes
     for col in COLUMNS:
         if col not in df.columns:
             df[col] = ""
-    # Reordenar columnas
     return df[COLUMNS]
 
 @st.cache_data(show_spinner=False)
 def load_data() -> pd.DataFrame:
-    """Carga datos desde CSV con esquema robusto."""
     try:
+        if not Path(CSV_PATH).exists():
+            return pd.DataFrame(columns=COLUMNS)
         df = pd.read_csv(CSV_PATH)
         return ensure_schema(df)
-    except FileNotFoundError:
-        return pd.DataFrame(columns=COLUMNS)
     except Exception:
-        # Si el CSV está corrupto o con separadores raros, inicializa vacío
         return pd.DataFrame(columns=COLUMNS)
 
 def save_data(df: pd.DataFrame) -> None:
-    """Guarda datos a CSV garantizando esquema."""
     df = ensure_schema(df)
     df.to_csv(CSV_PATH, index=False)
 
 def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante: bool) -> None:
-    """Agrega un registro (Apunte/Pregunta) al CSV."""
     df = load_data()
     nuevo = pd.DataFrame([{
         "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -83,7 +71,6 @@ def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante
     }])
     df = pd.concat([df, nuevo], ignore_index=True)
     save_data(df)
-    # Limpiar cache para reflejar cambios inmediatamente
     st.cache_data.clear()
 
 # -------------------------
@@ -92,11 +79,9 @@ def append_record(tipo: str, tema: str, subtema: str, contenido: str, importante
 st.markdown("## 📘 Apuntes de Obstetricia")
 st.write("Organiza tus apuntes clínicos y preguntas de forma sencilla, segura y visualmente atractiva.")
 
-# Glosario en barra lateral
 termino = st.sidebar.selectbox("📖 Glosario clínico", list(GLOSARIO.keys()))
 st.sidebar.info(GLOSARIO[termino])
 
-# Pestañas
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📝 Nuevo apunte", "📚 Ver apuntes", "🔎 Buscar", "🧪 Modo estudio", "❓ Haz una pregunta"
 ])
@@ -159,12 +144,13 @@ with tab3:
     palabra = st.text_input("Escribe una palabra para buscar en apuntes y preguntas")
 
     if palabra and not datos.empty:
-        resultados = datos[datos["Contenido"].str.contains(palabra, case=False, na=False)]
+        resultados = datos[datos["Contenido"].astype(str).str.contains(palabra, case=False, na=False)]
         st.dataframe(resultados)
 
     st.subheader("📅 Filtrar por fecha")
     fecha = st.date_input("Selecciona una fecha")
     if not datos.empty:
+        datos["Fecha"] = datos["Fecha"].astype(str)
         filtrados = datos[datos["Fecha"].str.startswith(str(fecha))]
         st.dataframe(filtrados)
 
@@ -202,6 +188,5 @@ with tab5:
         else:
             st.warning("⚠️ El campo está vacío. Escribe algo antes de guardar.")
 
-# Pie de página
 st.markdown("---")
 st.caption("App educativa basada en temas reales de obstetricia.")
