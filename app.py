@@ -218,9 +218,8 @@ with tab4:
 with tab5:
     st.subheader("❓ Haz una pregunta clínica")
     modo_tema_q = st.radio("¿Cómo quieres ingresar el tema?", ["Seleccionar", "Escribir"], key="modo_tema_q")
+
     if modo_tema_q == "Seleccionar":
         tema_q = st.selectbox("Tema relacionado", TEMAS, key="tema_q")
     else:
-        tema_q = st.text_input("Escribe el tema relacionado", key="tema_q_input")
-
-    subs_q
+        tema
